@@ -25,7 +25,10 @@ class Pose:
 class Robot:
     # high level, easy to manipulate robot object
 
-    dh_param, limit_offsets, cur_joint_angles, base_pose = None
+    dh_param = None
+    limit_offsets = None
+    cur_joint_angles = None
+    base_pose = None
 
     max_acceleration = 1  # m/s^2
     max_velocity = .05  # m/s
