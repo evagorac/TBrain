@@ -52,6 +52,12 @@ class Robot:
     def rel_move(self, pos=None, r_matrix=None):
         pass
 
+    def abs_rapid(self, pos=None, r_matrix=None):
+        pass
+
+    def rel_rapid(self, pos=None, r_matrix=None):
+        pass
+
     def abs_joint_move(self, joint_no, angle):
         # radians
         pass
