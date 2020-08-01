@@ -4,7 +4,7 @@ print("working")
 
 
 class Pose:
-    # matrix pose handler and wrapper
+    # matrix pose handler
 
     pose = None
 
@@ -43,26 +43,13 @@ class Robot:
         self.cur_joint_angles = cur_joint_angles
         self.base_pose = base_pose
 
-    def home_joints(self):
+    def home_joints(self, remember_pos=False):
         pass
 
-    def abs_move(self, pos=None, r_matrix=None):
+    def move(self, pos=np.zeros(3), r_matrix=np.identity(3), absolute=True, rapid=False):
         pass
 
-    def rel_move(self, pos=None, r_matrix=None):
-        pass
-
-    def abs_rapid(self, pos=None, r_matrix=None):
-        pass
-
-    def rel_rapid(self, pos=None, r_matrix=None):
-        pass
-
-    def abs_joint_move(self, joint_no, angle):
-        # radians
-        pass
-
-    def rel_joint_move(self, joint_no, angle):
+    def joint_move(self, joint_no, angle, absolute=True):
         # radians
         pass
 
@@ -75,6 +62,9 @@ class MotionController:
 
     cur_joint_angles = None
     motor_pos = None
+
+    def __init__(self):
+        pass
 
     def ikine(self, pose, cur_pose):
         pass
