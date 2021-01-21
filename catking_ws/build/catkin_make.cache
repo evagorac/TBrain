@@ -1,2 +1,0 @@
-TBrain
--DCATKIN_DEVEL_PREFIX=/home/chris/PycharmProjects/TBrain/catking_ws/devel -DCMAKE_INSTALL_PREFIX=/home/chris/PycharmProjects/TBrain/catking_ws/install -G Unix Makefiles

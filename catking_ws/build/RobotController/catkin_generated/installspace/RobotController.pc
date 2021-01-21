@@ -1,8 +1,0 @@
-prefix=/home/chris/PycharmProjects/TBrain/catking_ws/install
-
-Name: RobotController
-Description: Description of RobotController
-Version: 0.0.0
-Cflags: 
-Libs: -L${prefix}/lib 
-Requires: 
