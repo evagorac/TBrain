@@ -2,7 +2,6 @@ import numpy as np
 
 class PoseWrap:
   # matrix pose handler
-  # constuctor requires a rotation matrix and position vector
   def __init__(self, pose):
     pose = np.array(pose)
     self.check_pose_legality(pose)
@@ -28,7 +27,8 @@ class PoseWrap:
   def is_r_matrix_legal(self, r_matrix):
     if r_matrix.shape != (3,3):
       return False
-    # check if r_matrix is orthogonal by dotting all col vecs and making sure determinant == 1
+    # check if r_matrix is orthogonal by dotting all col vecs, making sure
+    # all are at right angles and make sure determinant == 1
     epsilon = .00001
     if np.abs(np.linalg.det(r_matrix)-1) > epsilon:
       return False
@@ -58,12 +58,16 @@ class PoseWrap:
     if np.any(~np.equal(pose[3, :], np.array([0, 0, 0, 1]))):
       raise Excpetion("transformation matrix is nonhomogenous " + str(pose))
 
-  def forward_transform(self, ext_pose):
+  def forward(self, ext_pose):
+    # perform forward transform of class pose by ext_pose matrix
+    # equivalent to matmul(ext_pose, class_pose)
     if not isinstance(ext_pose, PoseWrap):
       raise Exception("pose object passed to forward transform is not a PoseWrap instance")
     return np.matmul(ext_pose.get_pose(), self.__pose)
 
-  def inverse_transform(self, ext_pose):
+  def inverse(self, ext_pose):
+    # perform inverse transform of class pose by the inverse of ext_pose matrix
+    # equivalent to matmul(inv(ext_pose), class_pose)
     if not isinstance(ext_pose, PoseWrap):
       raise Exception("pose object passed to inverse transform is not a PoseWrap instance")
     return np.linalg.solve(ext_pose.get_pose(), self.__pose)
@@ -150,7 +154,7 @@ if __name__ == "__main__":
   t1 = PoseWrap([[0,1,0,1],[1,0,0,1],[0,0,-1,1],[0,0,0,1]])
   x = np.array([[0,1,0,1],[1,0,0,1],[0,0,-1,1],[0,0,0,1]])
   t2 = PoseWrap(x)
-  res = t2.forward_transform(t1)
+  res = t2.forward(t1)
   print(t1)
   print(t2)
   print(res)
