@@ -1,86 +1,131 @@
 import numpy as np
 
-print("working")
+class Pose_Wrapper:
+  # matrix pose handler
+  # constuctor requires a rotation matrix and position vector
+  def __init__(self, r_matrix=np.identity(3), pos_vec=np.zeros((3,1))):
+    self.__pose = np.block([[r_matrix, pos_vec], [0, 0, 0, 1]])
 
+  def set_r_matrix(self, r_matrix)
+    if ~self.is_r_matrix_legal(r_matrix):
+      raise Exception("rotaion matrix is illegal " + str(r_matrix))
+    self.__pose[:3, :3] = r_matrix
 
-class Pose:
-    # matrix pose handler
+  def set_pos(self, pos_vec)
+    if pos_vec.shape != (3,1) or np.any(~np.isreal(pos_vec))
+      raise Exception("position vector is illegal " + str(pos_vec))
+    self.__pose[:3, 3] = pos_vec
 
-    pose = None
+  @staticmethod
+  def is_r_matrix_legal(r_matrix):
+    if r_matrix.shape != (3,3):
+      return False
+    # check if r_matrix is orthogonal by dotting all col vecs and making sure determinant == 1
+    epsilon = .00001
+    if np.abs(np.linalg.det(r_matrix)-1) > epsilon:
+      return False
+    for col1 in range(3):
+      for col2 in range(col1+1, 3):
+        if np.abs(np.dot(r_matrix[:, col1], r_matrix[:, col2])) > epsilon:
+          return False
+    return True
 
-    def __init__(self, r_matrix=None, pos_vec=None, identity=False):
-        if identity:
-            self.pose = np.identity(4)
-        else:
-            self.pose = np.block([[r_matrix, pos_vec], [0, 0, 0, 1]])
+  @staticmethod
+  def check_pose_legality(pose):
+    # check for real numbers
+    if np.any(~np.isreal(pose)):
+      raise Exception("nonreal numbers present in pose matrix " + str(pose))
 
-    def set(self, r_matrix=None, pos_vec=None):
-        if r_matrix is not None:
-            self.pose[:3, :3] = r_matrix
-        if pos_vec is not None:
-            self.pose[:3, 3] = pos_vec
+    r_matrix = pose.get_r_matrix()
+    if ~is_r_matrix_legal(r_matrix)
+      raise Exception("rotation matrix is non orthogonal " + str(r_matrix))
 
-    def multiply(self, pose2):
-        return np.matmul(self.pose, pose2)
+    if pose[3, :] != np.array([0, 0, 0, 1]):
+      raise Excpetion("transformation matrix is nonhomogenous " + str(pose))
+
+  def forward_transform(self, ext_pose):
+    if ~isinstance(ext_pose, Pose_Wrapper):
+      raise Exception("pose object passed to forward transform is not a Pose_Wrapper instance")
+    self.__pose = np.matmul(ext_pose.get_pose(), self.__pose)
+
+  def inverse_transform(self, ext_pose):
+    if ~isinstance(ext_pose, Pose_Wrapper):
+      raise Exception("pose object passed to inverse transform is not a Pose_Wrapper instance")
+    self.__pose = np.linalg.solve(ext_pose.get_pose(), self.__pose)
+
+  def get_pose():
+    return self.__pose
+
+  def get_r_matrix():
+    return self.__pose[:3, :3]
+
+  def get_pos_vec():
+    return self.__pose[:3, 3]
 
 
 class Robot:
-    # high level, easy to manipulate robot object
+  # high level, easy to manipulate robot object
 
-    dh_param = None
-    limit_offsets = None
-    cur_joint_angles = None
-    base_pose = None
+  dh_param = None
+  limit_offsets = None
+  cur_joint_angles = None
+  base_pose = None
 
-    max_acceleration = 1  # m/s^2
-    max_velocity = .05  # m/s
-    max_alpha = 1  # rad/s^2
-    max_omega = np.pi/10  # rad/s
+  max_acceleration = 1  # m/s^2
+  max_velocity = .05  # m/s
+  max_alpha = 1  # rad/s^2
+  max_omega = np.pi/10  # rad/s
 
-    def __init__(self, dh_param=None, limit_offsets=np.zeros(6), cur_joint_angles=np.zeros(6), base_pose=np.identity(4)):
-        self.dh_param = dh_param
-        self.limit_offsets = limit_offsets
-        self.cur_joint_angles = cur_joint_angles
-        self.base_pose = base_pose
+  def __init__(self, dh_param=None, limit_offsets=np.zeros(6), cur_joint_angles=np.zeros(6), base_pose=np.identity(4)):
+    self.dh_param = dh_param
+    self.limit_offsets = limit_offsets
+    self.cur_joint_angles = cur_joint_angles
+    self.base_pose = base_pose
 
-    def home_joints(self, remember_pos=False):
-        pass
+  def home_joints(self, remember_pos=False):
+    pass
 
-    def move(self, pos=np.zeros(3), r_matrix=np.identity(3), absolute=True, rapid=False):
-        pass
+  def move(self, pos=np.zeros(3), r_matrix=np.identity(3), absolute=True, rapid=False):
+    pass
 
-    def joint_move(self, joint_no, angle, absolute=True):
-        # radians
-        pass
+  def joint_move(self, joint_no, angle, absolute=True):
+    # radians
+    pass
 
-    def actuate_end_effector(self):
-        pass
+  def actuate_end_effector(self):
+    pass
 
 
 class MotionController:
-    # handles movement commands from Robot class, will lerp and slerp, will compute joint angles for Joint Controller
+  # handles movement commands from Robot class, will lerp and slerp, will compute joint angles for Joint Controller
 
-    cur_joint_angles = None
-    motor_pos = None
+  cur_joint_angles = None
+  motor_pos = None
 
-    def __init__(self):
-        pass
+  def __init__(self):
+    pass
 
-    def ikine(self, pose, cur_pose):
-        pass
+  def ikine(self, pose, cur_pose):
+    pass
 
-    def fkine(self, joint_angles):
-        pass
+  def fkine(self, joint_angles):
+    pass
 
-    def within_tol(self, trans_tol, angle_tol):
-        pass
+  def within_tol(self, trans_tol, angle_tol):
+    pass
 
 
 class JointController:
-    # communicates with odrives and receives commands from Motion Controller
+  # communicates with odrives and receives commands from Motion Controller
 
-    def __init__(self):
-        pass
+  def __init__(self):
+    pass
 
-    def get_joint_pos_legality(self):
-        pass
+  def get_joint_pos_legality(self):
+    pass
+
+
+if __name__ == __main__:
+  print("running test cases")
+  print("start with pose wrapper")
+  
