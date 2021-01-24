@@ -88,23 +88,25 @@ class PoseWrap:
 class Robot:
   # high level, easy to manipulate robot object
 
-  dh_param = None
-  limit_offsets = None
-  cur_joint_angles = None
-  base_pose = None
+  __dh_param = None
+  __limit_offsets = None
+  __base_pose_offset = None
 
   max_acceleration = 1  # m/s^2
   max_velocity = .05  # m/s
   max_alpha = 1  # rad/s^2
   max_omega = np.pi/10  # rad/s
 
-  def __init__(self, dh_param=None, limit_offsets=np.zeros(6), cur_joint_angles=np.zeros(6), base_pose=np.identity(4)):
-    self.dh_param = dh_param
-    self.limit_offsets = limit_offsets
-    self.cur_joint_angles = cur_joint_angles
-    self.base_pose = base_pose
+  def __init__(self, dh_param, limit_offsets, base_pose_offset=np.identity(4)):
+    self.__dh_param = dh_param
+    self.__limit_offsets = limit_offsets
+    self.__base_pose_offset = base_pose_offset
+    self.MC = MotionController() # fill me
 
-  def home_joints(self, remember_pos=False):
+  def joint_state(self, j):
+    pass
+
+  def home_joint(self, j):
     pass
 
   def move(self, pos=np.zeros(3), r_matrix=np.identity(3), absolute=True, rapid=False):
