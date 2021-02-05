@@ -85,6 +85,8 @@ class PoseWrap:
   def __str__(self):
     return str(self.__pose)
 
+
+# ------------------- Begin Robot class definition -------------------
 class Robot:
   # high level, easy to manipulate robot object
 
@@ -108,6 +110,7 @@ class Robot:
     pass
 
 
+# ------------------- Begin Motion controller class definition -------------------
 class MotionController:
   # handles movement commands from Robot class, will lerp and slerp, will compute joint angles for Joint Controller
 
@@ -138,10 +141,20 @@ class MotionController:
     pass
 
 
+# ------------------- Begin Joint controller class definition -------------------
 class JointController:
   # communicates with odrives and receives commands from Motion Controller
 
-  __joint_angles = np.zeros(6)
+  __joint_angle_setpoints = np.zeros(6)
+  J14_lookup = {1:(0,0), 2:(1,0), 3:(0,1), 4:(1,1)}
+
+  # define gear ratios for joints excluding J2 an J3 which require a separate function
+  # this is defined as the number of input revolutions of the motor for one output revolution of the robot joint
+  # TODO insert gear ratios
+  J1_ratio = 1
+  J4_ratio = 1
+  J5_ratio = 1
+  J6_ratio = 1
 
   def __init__(self, ODSerialsPath, full_calib=True):
     self.odrives = setup.import_odrives(ODSerialPath)
@@ -154,38 +167,50 @@ class JointController:
     return self.__joint_angles
 
   def set(self, J_vec):
-  # J_vec 6 element np array in order from J1 - J6
-  # this function takes a np array of rotational setpoints for the joints
+  # J_vec is a 6 element np array of joint setpoints in order from J1-J6
+  # this function takes a np array of rotational setpoints for the joints and commands to odrives
   # before writing to odrives we must also do the ballscrew trig to make setpoints correctly
-  # commanded joint angles from J_vec will be checked for redundancy to avoid writing to usb needlessly
 
-
-# ------------------------- Begin J1-J4 -------------------------
   '''
   setup returns odrives from bottom to top, but because the odrives were wired to spread current fairly
   evenly according to how hard each motor has to work the odrives, the axis objects are not ordered
-  the same as the joints are.  J14_lookup maps joints 1-4 desired to a respective odrive and axis tuple
-  excluding J5 and J6 because of the differential which requires both to move together.
+  the same as the joints are.  J14_lookup defined in the class field maps joints 1-4 desired to a
+  respective odrive and axis tuple excluding J5 and J6 because of the differential which requires both
+  to move together.
   '''
-    J14_lookup = {1:(0,0), 2:(1,0), 3:(0,1), 4:(1,1)}
-    for joint in [1, 2, 3, 4]:
-      if J_vec[joint-1] != self.__joint_angles[joint-1]: # make sure new set point is not redundant before writing to odrives
-        od_idx, axis = J14_lookup[joint]
-        if joint not in [2, 3]: # if the joint is no a ball screw joint, then just pass the command to the odrive axis controller
-          setup.get_axis_object(odrives[od_idx], axis).controller.input_pos = J_vec[od_idx+axis]
-        else: # if we are dealing with joint 2 or 3, pass through joint angle to motor pos function taking into account the geometry
-          pass #TODO
+  # ----- Begin J1-J4 -----
+  for joint in [1, 2, 3, 4]:
+#    self.check_discontinuity(self.__joint_angle_setpoints[joint-1], J_vec[joint-1]) # TODO implement this to ensure setpoint is not too far from previous
+    self.__joint_angle_setpoints[joint-1] = J_vec[joint-1]
+    od_idx, axis = self.J14_lookup[joint]
+    if joint in [1, 4]: # if the joint is not a ball screw joint, then just pass the command to the odrive axis controller
+      ratio = (self.J1_ratio if joint==1 else self.J4_ratio)
+      setup.get_axis_object(odrives[od_idx], axis).controller.input_pos = ratio * J_vec[od_idx+axis]
+    else: # if we are dealing with joint 2 or 3, pass through joint angle to motor pos function taking into account the geometry of screws
+      pass #TODO write and implement the trig calculations
 
-# ------------------------- Begin J5&J6 -------------------------
+  # ----- Begin J5&J6 -----
   # now must handle J5 and J6 differential
   # reverse motor direction in odrivetool if direction messed up
-  
 
+  # simply superimpose the effects of J5 and J6 to each motor by adding them together before commanding to odrive
+  M5_pos = 0 # assume a positive M5 pos is a positive change to J5 and a negative change to J6
+  M6_pos = 0 # assume the same for M6
+  for joint in [5, 6]:
+#    self.check_discontinuity(self.__joint_angle_setpoints[joint-1], J_vec[joint-1]) # TODO implement this to ensure setpoint is not too far from previous
+    self.__joint_angle_setpoints[joint-1] = J_vec[joint-1]
+    ratio = (self.J5_ratio if joint == 5 else self.J6_ratio)
+    effect = ratio * J_vec[joint-1]
+    M5_pos += effect
+    if joint == 5:
+      M6_pos += effect
+    else:
+      M6_pos -= effect
 
   def get_joint_pos_legality(self):
     pass
 
-
+# ------------------- Begin Test cases -------------------
 if __name__ == "__main__":
   print("running test cases")
   print("start with pose wrapper")
