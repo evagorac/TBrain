@@ -6,7 +6,7 @@ import math
 
 # this file implements relevant functions for setting up odrives
 
-def import_odrives(file):
+def import_odrive_axes(file):
   # accepts file name to txt of odrive serials
   # returns list of all 3 odrive objects, ordered from from bottom to top physically
   # ---------------------------------------
@@ -33,14 +33,18 @@ def import_odrives(file):
 
   return odrives
 
-def odrive_axis_calib(odrive, axis):
-  # given odrive object and axis (0,1), calibrate and enter position control mode
+def get_axis_object(odrive, axis):
   if axis == 0:
     axis_object = odrive.axis0
   elif axis == 1:
     axis_object = odrive.axis1
   else:
     raise("no such axis " + str(axis))
+
+def odrive_axis_calib(odrive, axis, full_calib=True):
+  # given odrive object and axis (0,1), calibrate and enter position control mode
+
+  axis_object = get_axis_object(odrive, axis)
 
   print("calibrating axis " + str(axis) + " for odrive " + str(hex(odrive.serial_number)))
 

@@ -58,8 +58,3 @@ def setup():
     p.join()
 
 setup()
-
-
-
-
-

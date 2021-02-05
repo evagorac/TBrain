@@ -1,4 +1,5 @@
 import numpy as np
+import setup
 
 class PoseWrap:
   # matrix pose handler
@@ -84,24 +85,11 @@ class PoseWrap:
   def __str__(self):
     return str(self.__pose)
 
-
 class Robot:
   # high level, easy to manipulate robot object
 
-  __dh_param = None
-  __limit_offsets = None
-  __base_pose_offset = None
-
-  max_acceleration = 1  # m/s^2
-  max_velocity = .05  # m/s
-  max_alpha = 1  # rad/s^2
-  max_omega = np.pi/10  # rad/s
-
-  def __init__(self, dh_param, limit_offsets, base_pose_offset=np.identity(4)):
-    self.__dh_param = dh_param
-    self.__limit_offsets = limit_offsets
-    self.__base_pose_offset = base_pose_offset
-    self.MC = MotionController() # fill me
+  def __init__(self, MC_pipe, JC_pipe):
+    pass
 
   def joint_state(self, j):
     pass
@@ -123,16 +111,27 @@ class Robot:
 class MotionController:
   # handles movement commands from Robot class, will lerp and slerp, will compute joint angles for Joint Controller
 
+  __dh_param = None
+  __limit_offsets = None
+  __base_pose_offset = None
+
+  max_acceleration = 1  # m/s^2
+  max_velocity = .05  # m/s
+  max_alpha = 1  # rad/s^2
+  max_omega = np.pi/10  # rad/s
+
   cur_joint_angles = None
   motor_pos = None
 
-  def __init__(self):
+  def __init__(self, base_pose_offset):
+    self.__dh_param = dh_param
+    self.__limit_offsets = limit_offsets
+    self.__base_pose_offset = base_pose_offset
+
+  def fkine(self, joint_angles):
     pass
 
   def ikine(self, pose, cur_pose):
-    pass
-
-  def fkine(self, joint_angles):
     pass
 
   def within_tol(self, trans_tol, angle_tol):
@@ -142,8 +141,46 @@ class MotionController:
 class JointController:
   # communicates with odrives and receives commands from Motion Controller
 
-  def __init__(self):
-    pass
+  __joint_angles = np.zeros(6)
+
+  def __init__(self, ODSerialsPath, full_calib=True):
+    self.odrives = setup.import_odrives(ODSerialPath)
+    if calib_on_instantiation:
+      for odrive in self.odrives:
+        for axis in [0,1]:
+          setup.odrive_axis_calib(odrive, axis, full_calib=full_calib)
+
+  def get_joints(self):
+    return self.__joint_angles
+
+  def set(self, J_vec):
+  # J_vec 6 element np array in order from J1 - J6
+  # this function takes a np array of rotational setpoints for the joints
+  # before writing to odrives we must also do the ballscrew trig to make setpoints correctly
+  # commanded joint angles from J_vec will be checked for redundancy to avoid writing to usb needlessly
+
+
+# ------------------------- Begin J1-J4 -------------------------
+  '''
+  setup returns odrives from bottom to top, but because the odrives were wired to spread current fairly
+  evenly according to how hard each motor has to work the odrives, the axis objects are not ordered
+  the same as the joints are.  J14_lookup maps joints 1-4 desired to a respective odrive and axis tuple
+  excluding J5 and J6 because of the differential which requires both to move together.
+  '''
+    J14_lookup = {1:(0,0), 2:(1,0), 3:(0,1), 4:(1,1)}
+    for joint in [1, 2, 3, 4]:
+      if J_vec[joint-1] != self.__joint_angles[joint-1]: # make sure new set point is not redundant before writing to odrives
+        od_idx, axis = J14_lookup[joint]
+        if joint not in [2, 3]: # if the joint is no a ball screw joint, then just pass the command to the odrive axis controller
+          setup.get_axis_object(odrives[od_idx], axis).controller.input_pos = J_vec[od_idx+axis]
+        else: # if we are dealing with joint 2 or 3, pass through joint angle to motor pos function taking into account the geometry
+          pass #TODO
+
+# ------------------------- Begin J5&J6 -------------------------
+  # now must handle J5 and J6 differential
+  # reverse motor direction in odrivetool if direction messed up
+  
+
 
   def get_joint_pos_legality(self):
     pass
