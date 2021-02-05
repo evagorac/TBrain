@@ -145,8 +145,10 @@ class MotionController:
 class JointController:
   # communicates with odrives and receives commands from Motion Controller
 
-  __joint_angle_setpoints = np.zeros(6)
-  J14_lookup = {1:(0,0), 2:(1,0), 3:(0,1), 4:(1,1)}
+  odrives = None
+  __joint_angle_setpoints = np.zeros(6) #TODO make better defaults, might send it straight down
+  __joint_calibration_states = np.zeros(6, dtype=bool)
+  __J14_lookup = {1:(0,0), 2:(1,0), 3:(0,1), 4:(1,1)}
 
   # define gear ratios for joints excluding J2 an J3 which require a separate function
   # this is defined as the number of input revolutions of the motor for one output revolution of the robot joint
@@ -156,15 +158,23 @@ class JointController:
   J5_ratio = 1
   J6_ratio = 1
 
-  def __init__(self, ODSerialsPath, full_calib=True):
+  def __init__(self, ODSerialsPath):
     self.odrives = setup.import_odrives(ODSerialPath)
-    if calib_on_instantiation:
-      for odrive in self.odrives:
-        for axis in [0,1]:
-          setup.odrive_axis_calib(odrive, axis, full_calib=full_calib)
 
-  def get_joints(self):
-    return self.__joint_angles
+  def calib_axes(self, full_calib=True)
+    for od_idx in range(len(self.odrives)):
+      for axis in [0,1]:
+        try:
+          setup.odrive_axis_calib(odrives[od_idx], axis, full_calib=full_calib)
+         self. __joint_calibration_states[od_idx + axis] = True
+        except Exception as inst: # catches excpetion if calib fails
+          print(inst.args)
+
+  def home(self): # will home with switches and use limit offsets to zero machine
+    pass #TODO
+
+  def get_joint_setpoints(self):
+    return self.__joint_angle_setpoints
 
   def set(self, J_vec):
   # J_vec is a 6 element np array of joint setpoints in order from J1-J6
@@ -182,7 +192,7 @@ class JointController:
   for joint in [1, 2, 3, 4]:
 #    self.check_discontinuity(self.__joint_angle_setpoints[joint-1], J_vec[joint-1]) # TODO implement this to ensure setpoint is not too far from previous
     self.__joint_angle_setpoints[joint-1] = J_vec[joint-1]
-    od_idx, axis = self.J14_lookup[joint]
+    od_idx, axis = self.__J14_lookup[joint]
     if joint in [1, 4]: # if the joint is not a ball screw joint, then just pass the command to the odrive axis controller
       ratio = (self.J1_ratio if joint==1 else self.J4_ratio)
       setup.get_axis_object(odrives[od_idx], axis).controller.input_pos = ratio * J_vec[od_idx+axis]
@@ -207,7 +217,10 @@ class JointController:
     else:
       M6_pos -= effect
 
-  def get_joint_pos_legality(self):
+  def J2_ballscrew_solver(self, input):
+    pass
+
+  def J3_ballscrew_solver(self, input):
     pass
 
 # ------------------- Begin Test cases -------------------
