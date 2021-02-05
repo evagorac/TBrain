@@ -166,7 +166,7 @@ class JointController:
       for axis in [0,1]:
         try:
           setup.odrive_axis_calib(odrives[od_idx], axis, full_calib=full_calib)
-         self. __joint_calibration_states[od_idx + axis] = True
+          self.__joint_calibration_states[od_idx + axis] = True
         except Exception as inst: # catches excpetion if calib fails
           print(inst.args)
 
@@ -216,6 +216,8 @@ class JointController:
       M6_pos += effect
     else:
       M6_pos -= effect
+  setup.get_axis_object(odrives[-1], 0).controller.input_pos = M5_pos
+  setup.get_axis_object(odrives[-1], 1).controller.input_pos = M6_pos
 
   def J2_ballscrew_solver(self, input):
     pass

@@ -6,7 +6,7 @@ import math
 
 # this file implements relevant functions for setting up odrives
 
-def import_odrive_axes(file):
+def import_odrives(file):
   # accepts file name to txt of odrive serials
   # returns list of all 3 odrive objects, ordered from from bottom to top physically
   # ---------------------------------------
