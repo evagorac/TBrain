@@ -160,6 +160,8 @@ class JointController:
 
   def __init__(self, ODSerialsPath):
     self.odrives = setup.import_odrives(ODSerialPath)
+    if len(self.odrives) != 3:
+      raise Exception("Error importing odrives correctly. Expected 3 but received {}.".format(len(self.odrives)))
 
   def calib_axes(self, full_calib=True)
     for od_idx in range(len(self.odrives)):
@@ -176,6 +178,31 @@ class JointController:
   def get_joint_setpoints(self):
     return self.__joint_angle_setpoints
 
+  # the following functions return motor positions from desired joint angles
+  def linear_joint_map(self, joint_angle, ratio=1):
+    return joint_angle * ratio
+
+  def J2_map(self, joint_angle):
+    pass
+
+  def J3_map(self, joint_angle):
+    pass
+
+  def J56_diff_map(self, J5_angle, J6_angle, J5_ratio=1, J6_ratio=1):
+    # function returns motor position values for M5(A) and M6(B) for inputs for J5 and J6 angles
+    # assume positive change in motor position for M5 and M6 correspond to a positive change in J5_angle
+    # assume positive change in M5 and negative change in M6 correspond to a positive change in J6_angle
+    M5_pos = 0
+    M6_pos = 0
+
+    M5_pos += J5_angle * J5_ratio
+    M6_pos += J5_angle * J5_ratio
+
+    M5_pos += J6_angle * J6_ratio
+    M6_pos -= J6_angle * J6_ratio
+    
+    return (M5_pos, M6_pos)
+
   def set(self, J_vec):
   # J_vec is a 6 element np array of joint setpoints in order from J1-J6
   # this function takes a np array of rotational setpoints for the joints and commands to odrives
@@ -191,39 +218,36 @@ class JointController:
   # ----- Begin J1-J4 -----
   for joint in [1, 2, 3, 4]:
 #    self.check_discontinuity(self.__joint_angle_setpoints[joint-1], J_vec[joint-1]) # TODO implement this to ensure setpoint is not too far from previous
-    self.__joint_angle_setpoints[joint-1] = J_vec[joint-1]
-    od_idx, axis = self.__J14_lookup[joint]
-    if joint in [1, 4]: # if the joint is not a ball screw joint, then just pass the command to the odrive axis controller
+    angle_setpoint = J_vec[joint-1]
+
+    self.__joint_angle_setpoints[joint-1] = angle_setpoint # make new setpoint the previous setpoint for the next set function call
+    od_idx, axis = self.__J14_lookup[joint] # get corresponding odrive and axis for joint in question
+    axis_object = setup.get_axis_object(odrives[od_idx], axis) # get odrive axis object to command motor
+
+    if joint in [1, 4]: # if the joint is not a ball screw joint, do simple linear map
       ratio = (self.J1_ratio if joint==1 else self.J4_ratio)
-      setup.get_axis_object(odrives[od_idx], axis).controller.input_pos = ratio * J_vec[od_idx+axis]
-    else: # if we are dealing with joint 2 or 3, pass through joint angle to motor pos function taking into account the geometry of screws
-      pass #TODO write and implement the trig calculations
+      motor_setpoint = self.linear_joint_map(angle_setpoint, ratio)
+    elif joint == 2: # if we are dealing with joint 2 or 3, pass through joint angle to motor pos function taking into account the geometry of screws
+      motor_setpoint = self.J2_map(angle_setpoint)
+    elif joint == 3:
+      motor_setpoint = self.J3_map(angle_setpoint)
+    else:
+      Raise Exception("error, joint {} is not between 1 and 4".format(joint))
+
+    axis_object.controller.input_pos = motor_setpoint
 
   # ----- Begin J5&J6 -----
-  # now must handle J5 and J6 differential
-  # reverse motor direction in odrivetool if direction messed up
+  J5_setpoint = J_vec[4]
+  J6_setpoint = J_vec[5]
 
-  # simply superimpose the effects of J5 and J6 to each motor by adding them together before commanding to odrive
-  M5_pos = 0 # assume a positive M5 pos is a positive change to J5 and a negative change to J6
-  M6_pos = 0 # assume the same for M6
-  for joint in [5, 6]:
+  for joint in [5,6]:
 #    self.check_discontinuity(self.__joint_angle_setpoints[joint-1], J_vec[joint-1]) # TODO implement this to ensure setpoint is not too far from previous
     self.__joint_angle_setpoints[joint-1] = J_vec[joint-1]
-    ratio = (self.J5_ratio if joint == 5 else self.J6_ratio)
-    effect = ratio * J_vec[joint-1]
-    M5_pos += effect
-    if joint == 5:
-      M6_pos += effect
-    else:
-      M6_pos -= effect
-  setup.get_axis_object(odrives[-1], 0).controller.input_pos = M5_pos
-  setup.get_axis_object(odrives[-1], 1).controller.input_pos = M6_pos
 
-  def J2_ballscrew_solver(self, input):
-    pass
+  M5_pos, M6_pos = self.J56_diff_map(J5_setpoint, J6_setpoint, J5_ratio=self.J5_ratio, J6_ratio=self.J6_ratio)
+  setup.get_axis_object(odrives[2], 0).controller.input_pos = M5_pos
+  setup.get_axis_object(odrives[2], 1).controller.input_pos = M6_pos
 
-  def J3_ballscrew_solver(self, input):
-    pass
 
 # ------------------- Begin Test cases -------------------
 if __name__ == "__main__":
