@@ -147,8 +147,8 @@ class JointController:
 
     odrives = None
     __joint_angle_setpoints = np.array([0,np.pi/2,0,0,0,0]) #TODO make better defaults, might send it straight down
-    __joint_calibration_states = np.zeros(6, dtype=bool)
-    __J14_lookup = {1:(0,0), 2:(1,0), 3:(0,1), 4:(1,1)}
+    __motor_calibration_states = np.zeros(6, dtype=bool) # list of indicators for each motor is calibrated
+    __J14_lookup = {1:(0,0), 2:(1,0), 3:(0,1), 4:(1,1)} # maps joint # from 1-4 to a odrive axis pair
 
     # define gear ratios for joints excluding J2 an J3 which require a separate function
     # this is defined as the number of input revolutions of the motor for one output revolution of the robot joint
@@ -156,6 +156,8 @@ class JointController:
     J4_ratio = 1
     J5_ratio = 1
     J6_ratio = 1
+
+    in_to_m = 0.0254
 
     def __init__(self, ODSerialsPath):
         self.odrives = setup.import_odrives(ODSerialPath)
@@ -183,12 +185,13 @@ class JointController:
 
     def J2_map(self, joint_angle):
         # define constants from math
+        # a positive value for motor pos corresponds to the carriage moving downwards and towards the limit switch
         th = joint_angle
         tanth = np.tan(th)
-        a = 1 #TODO correct these numbers
-        b = 1
-        c = 1
-        r = 1
+        a = 2.5 * self.in_to_m 
+        b = 5 * self.in_to_m
+        c = 4.25 * self.in_to_m
+        r = 9 * self.in_to_m
         beta = 1/np.sqrt(1+tanth**2)
 
         # the following follow the form (A+sqrt(B))/C
@@ -206,12 +209,13 @@ class JointController:
 
     def J3_map(self, joint_angle):
         # define constants from math
-        th = joint_angle + np.pi/2
+        # a positive value for motor pos corresponds to the carriage moving downwards and away from the limit switch
+        th = -joint_angle * np.pi/2 + np.pi/2
         tanth = np.tan(th)
-        a = 1 #TODO correct these numbers
-        b = 1
-        c = 1
-        r = 1
+        a = 3.5 * self.in_to_m
+        b = 7 * self.in_to_m
+        c = 4.25 * self.in_to_m
+        r = 11.5 * self.in_to_m
         beta = 1/np.sqrt(1+tanth**2)
 
         pitch = .005 # meters
