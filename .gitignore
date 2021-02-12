@@ -1,1 +1,4 @@
 src/__pycache__
+.venv/*
+src/start_venv.sh
+src/stop_venv.sh
