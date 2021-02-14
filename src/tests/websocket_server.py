@@ -1,16 +1,17 @@
 import asyncio
 import websockets
+import pickle
 
 async def hello(websocket, path):
-    name = await websocket.recv()
-    print(f"< {name}")
+    pic_cmd = await websocket.recv()
+    joint_vel_cmds = pickle.loads(pic_cmd)
 
-    greeting = f"Hello {name}!"
+    print('recieved data')
 
-    await websocket.send(greeting)
-    print(f"> {greeting}")
+    await websocket.send('1')
+    print(f"> {joint_vel_cmds}")
 
-start_server = websockets.serve(hello, "localhost", 8765)
+start_server = websockets.serve(hello, "192.168.1.95", 8765)
 
 asyncio.get_event_loop().run_until_complete(start_server)
 asyncio.get_event_loop().run_forever()
