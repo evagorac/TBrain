@@ -4,6 +4,7 @@ import pickle
 import pygame
 from pygame import K_LEFT, K_RIGHT, K_1, K_2, K_3, K_4, K_5, K_6
 import time
+import numpy as np
 
 
 async def send_cmd(cmd):
@@ -20,10 +21,15 @@ def pass_cmd(cmd):
 pygame.display.init()
 pygame.display.set_mode(size=(250,250))
 
+joint_setpoints = np.array([0,0,0,0,0,0])
+move_vel = 10 * np.pi / 180 # 10 deg/s
+rate = 60
+move_step = move_vel / rate
+
 joint_queue = [1]
 while True:
     key = pygame.key.get_pressed()
-    vel_cmd = -key[K_LEFT] + key[K_RIGHT]
+    vel = -key[K_LEFT] + key[K_RIGHT]
 
     joint_keys = [None, K_1, K_2, K_3, K_4, K_5, K_6]
     for i in range(len(joint_keys)):
@@ -35,8 +41,14 @@ while True:
         elif len(joint_queue) > 1:
             if i in joint_queue:
                 joint_queue.remove(i)
-    cmd = (joint_queue[0], vel_cmd)
-    pass_cmd(cmd)
+    vel_cmd = (joint_queue[0], vel)
 
-    time.sleep(.05)
+    joint_setpoints[vel_cmd[0]-1] += vel_cmd[1] * move_step
+    
+    for x in joint_setpoints:
+        print(x)
+    print()
+
+    #pass_cmd(cmd)
+    time.sleep(1/rate)
     pygame.event.pump()

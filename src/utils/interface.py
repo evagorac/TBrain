@@ -225,7 +225,7 @@ class JointController:
         if not testing:
             return
 
-        for motor in [1,2,3,4]
+        for motor in [1,2,3,4]:
             motor_setpoint = M_pos[motor-1]
             od_idx, axis = self.__J14_lookup[motor] # get corresponding odrive and axis for joint in question
             axis_object = setup.get_axis_object(odrives[od_idx], axis) # get odrive axis object to command motor

@@ -24,9 +24,6 @@ OD_serial_path = '../odrive_serials.txt'
 JC = interface.JointController(OD_serial_path)
 JC.calib_axes()
 
-joint_setpoints = np.array([0,0,0,0,0,0])
-move_vel = 10 * np.pi / 180 # 10 deg/s
-
 start_server = websockets.serve(server, "192.168.1.95", 8765)
 
 asyncio.get_event_loop().run_until_complete(start_server)
