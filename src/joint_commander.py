@@ -21,7 +21,7 @@ def pass_cmd(cmd):
 pygame.display.init()
 pygame.display.set_mode(size=(250,250))
 
-joint_setpoints = np.array([0,0,0,0,0,0])
+joint_setpoints = [0,0,0,0,0,0]
 move_vel = 10 * np.pi / 180 # 10 deg/s
 rate = 60
 move_step = move_vel / rate
@@ -43,12 +43,17 @@ while True:
                 joint_queue.remove(i)
     vel_cmd = (joint_queue[0], vel)
 
-    joint_setpoints[vel_cmd[0]-1] += vel_cmd[1] * move_step
-    
+    step = vel_cmd[1] * move_step
+    joint_setpoints[vel_cmd[0]-1] += step
+
+    print('current joint:', vel_cmd[0])
     for x in joint_setpoints:
         print(x)
-    print()
+    try:
+        pass_cmd(cmd)
+    except:
+        print('failed to connect to server')
 
-    #pass_cmd(cmd)
+    print()
     time.sleep(1/rate)
     pygame.event.pump()
