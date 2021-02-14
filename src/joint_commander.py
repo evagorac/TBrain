@@ -26,9 +26,9 @@ pygame.display.init()
 pygame.display.set_mode(size=(250,250))
 
 joint_setpoints = [0,0,0,0,0,0]
-move_vel = 1/4 # turns/s
-sprint_multiplier = 20
-rate = 15
+move_vel = 1 # turns/s
+sprint_multiplier = 40
+rate = 240
 move_step = move_vel / rate
 print('max step =', move_step * sprint_multiplier)
 
