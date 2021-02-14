@@ -1,4 +1,5 @@
-from .. import setup
+import setup
+from odrive.utils import *
 
 odrives = setup.import_odrives("odrive_serials.txt")
 

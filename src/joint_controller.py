@@ -1,7 +1,8 @@
 import asyncio
 import websockets
 import pickle
-#from utils import interface
+import setup
+import interface
 import numpy as np
 import odrive as od
 
@@ -27,18 +28,17 @@ async def server(websocket, path):
         do(cmd)
 
 def do(cmd):
-    for x in cmd:
-        print(x, 'turns')
+    for i in range(len(cmd)):
+        print(cmd[i], 'turns')
     print()
-    #joint, vel_dir = cmd
-    #JC.simple_set(setpoints, testing=True)
+    JC.simple_set(cmd, testing=True)
 
 joint_cmd = [0,0,0,0,0,0]
-max_step = 2 * (1/4 * 25 / 15)
+max_step = 2 * (1 * 40 / 240)
 print('max step allowable', max_step)
 
-OD_serial_path = '../odrive_serials.txt'
-#JC = interface.JointController(OD_serial_path)
+OD_serial_path = 'odrive_serials.txt'
+JC = interface.JointController(OD_serial_path)
 #JC.calib_axes()
 
 start_server = websockets.serve(server, "192.168.1.95", 8765)

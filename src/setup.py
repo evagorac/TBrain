@@ -1,6 +1,6 @@
 import odrive as od
 from odrive.enums import *
-from odrive.utils import *
+import setup
 import time
 import math
 
@@ -40,6 +40,7 @@ def get_axis_object(odrive, axis):
     axis_object = odrive.axis1
   else:
     raise("no such axis " + str(axis))
+  return axis_object
 
 def odrive_axis_calib(odrive, axis, full_calib=True):
   # given odrive object and axis (0,1), calibrate and enter position control mode
@@ -86,9 +87,10 @@ def flash_settings(odrive):
 #  odrive.save_configuration()
 
 if __name__ == "__main__":
-  odrives = import_odrives("odrive_serials.txt")
+  odrives = import_odrives("../odrive_serials.txt")
   # test calib all axes
   for odrive in odrives:
     flash_settings(odrive)
+    print(odrive)
     for axis in [0,1]:
       odrive_axis_calib(odrive, axis)

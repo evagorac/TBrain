@@ -75,7 +75,7 @@ class JointController:
     in_to_m = 0.0254
 
     def __init__(self, ODSerialsPath):
-        self.odrives = setup.import_odrives(ODSerialPath)
+        self.odrives = setup.import_odrives(ODSerialsPath)
         if len(self.odrives) != 3:
             raise Exception("Error importing odrives correctly. Expected 3 but received {}.".format(len(self.odrives)))
 
@@ -83,7 +83,7 @@ class JointController:
         for od_idx in range(len(self.odrives)):
             for axis in [0,1]:
                 try:
-                    setup.odrive_axis_calib(odrives[od_idx], axis, full_calib=full_calib)
+                    setup.odrive_axis_calib(self.odrives[od_idx], axis, full_calib=full_calib)
                     self.__joint_calibration_states[od_idx + axis] = True
                 except Exception as inst: # catches excpetion if calib fails
                     print(inst.args)
@@ -224,6 +224,8 @@ class JointController:
         # please set testing=True to aknowledge this statement
         if not testing:
             return
+
+        odrives = self.odrives
 
         for motor in [1,2,3,4]:
             motor_setpoint = M_pos[motor-1]
