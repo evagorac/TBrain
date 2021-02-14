@@ -166,12 +166,11 @@ class JointController:
 
     def check_discontinuity(self, prev, current):
         # checks to see if step in joint angle is within reason to prevent accidents
-        max_step_degrees = 5
+        max_step_degrees = 1
         max_step_radians = max_step_degrees * 180/np.pi
 
         if abs(current - prev) > max_step_radians:
             raise Exception("warning, change in joint angle exceeded {} in one step".format(current-prev))
-
 
     def set(self, J_vec):
         # J_vec is a 6 element np array of joint setpoints in order from J1-J6
@@ -216,6 +215,36 @@ class JointController:
         M5_pos, M6_pos = self.J56_diff_map(J5_setpoint, J6_setpoint, J5_ratio=self.J5_ratio, J6_ratio=self.J6_ratio)
         setup.get_axis_object(odrives[2], 0).controller.input_pos = M5_pos
         setup.get_axis_object(odrives[2], 1).controller.input_pos = M6_pos
+
+
+    def simple_set(self, M_pos, testing=False):
+        # M_pos a 6 element row vector of wanted motor angles relative to startup
+        # simpler set function that directly writes to each motor pos instead of joint angle used for debugging
+        # do not call this function along with set from the same JC instance, the field variables will be messed up
+        # please set testing=True to aknowledge this statement
+        if not testing:
+            return
+
+        for motor in [1,2,3,4]
+            motor_setpoint = M_pos[motor-1]
+            od_idx, axis = self.__J14_lookup[motor] # get corresponding odrive and axis for joint in question
+            axis_object = setup.get_axis_object(odrives[od_idx], axis) # get odrive axis object to command motor
+            axis_object.controller.input_pos = motor_setpoint
+
+        J5_angle = M_pos[4]
+        J6_angle = M_pos[5]
+        M5_pos = 0
+        M6_pos = 0
+        M5_pos += J5_angle
+        M6_pos += J5_angle
+        M5_pos += J6_angle
+        M6_pos -= J6_angle
+
+        M5_axis = setup.get_axis_object(odrives[2], 0)
+        M6_axis = setup.get_axis_object(odrives[2], 1)
+
+        M5_axis.controller.input_pos = M5_pos
+        M6_axis.controller.input_pos = M6_pos
 
 
 # ------------------- Begin Test cases -------------------
