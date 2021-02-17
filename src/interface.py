@@ -58,7 +58,7 @@ class MotionController:
             return
 
         self.update_joint_angles(current_joint_angles) # update joint angles in DH param class variable
-        self.current_pose = self.fkine() # find current pose through call to fkine with current joint angles
+        self.current_pose = self.fkine(0,6) # find current pose through call to fkine with current joint angles
 
     def get_DH(self):
         return self.__dh_param
@@ -92,7 +92,7 @@ class MotionController:
 
         else:
             # if inverse is selected, retrace one joint and use parameters for inverse transform
-            if starting_joint not in range(2,7):
+            if starting_joint not in range(1,7):
                 raise Exception(f"inverse transform for starting joint {starting_joint} does not exist")
 
             joint_idx = starting_joint - 2
@@ -110,12 +110,51 @@ class MotionController:
             return T_inv
 
 
-    def fkine(self):
-        cur_pose = self.__base_pose_offset
-        for joint in range(1,6):
-            T = self.get_serial_transform(joint)
-            cur_pose = np.matmul(T, cur_pose)
-        return cur_pose
+    def fkine(self, start_joint, end_joint, reverse=False):
+        # takes starting joint and ending joint, and returns the pose of the end joint in the starting joint's frame
+
+        # check to see if start and end are within domain
+        if start_joint not in range(0,7):
+            raise Exception(f"start joint {start_joint} out of range for fkine calculation")
+        if end_joint not in range(0,7):
+            raise Exception(f"end joint {end_joint} out of range for fkine calculation")
+
+        if not reverse:
+            if end_joint - start_joint < 1:
+                raise Exception(f"end joint {end_joint} is not ahead of start joint{start_joint} for forward fkine calculation")
+
+            if start_joint == 0: # if start joint is 0, include base offset pose
+                pose = self.__base_pose_offset
+                start_joint += 1
+            else: # else set pose of start joint to identity
+                pose = np.eye(4) 
+
+            for joint in range(start_joint, end_joint):
+                T = self.get_serial_transform(joint)
+                pose = np.matmul(T, pose)
+            return pose
+
+        else: #reverse selected
+            if start_joint - end_joint < 1:
+                raise Exception(f"end joint {end_joint} is not behind of start joint{start_joint} for reverse fkine calculation")
+
+            pose = np.eye(4)
+
+            if end_joint == 0: # if end joint is 0, must include inverse base offset pose at end of chain
+                include_inv_base = True
+                end_joint += 1
+            else: # else set pose of start joint to identity
+                include_inv_base = False
+
+            for joint in range(start_joint-1, end_joint-1, -1): # start at joint just before end_joint, iterate backwards until you reach the start joint, inclusive
+                T_inv = self.get_serial_transform(joint, inverse=True)
+                pose = np.matmul(T_inv, pose)
+
+            if include_inv_base:
+                base_inv = np.linalg.inv(self.__base_pose_offset)
+                pose = np.matmul(base_inv, pose)
+            return pose
+
 
     def ikine(self, pose, cur_pose):
         pass
@@ -321,6 +360,19 @@ if __name__ == "__main__":
     MC = MotionController()
     test_angles = np.zeros(6)
     MC.update_joint_angles(test_angles)
+    print('retreiving DH param:')
     print(MC.get_DH())
-
+    print()
+    print('finding pose of each joint relative to base:')
+    for joint in range(1,7):
+        print(f"Joint #{joint}")
+        print(MC.fkine(0, joint))
+        print()
+    print('finding forward transform from base to end effector and inverse transform from end effector to base')
+    print('forward transform:')
+    forward = MC.fkine(1,2)
+    print(forward)
+    print('reverse transform')
+    reverse = MC.fkine(2,1, reverse=True)
+    print(reverse)
 
