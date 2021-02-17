@@ -29,8 +29,14 @@ class Robot:
 class MotionController:
     # handles movement commands from Robot class, will lerp and slerp, will compute joint angles for Joint Controller
 
-    __dh_param = None
-    __limit_offsets = None
+    # DH param encoded as clomuns for theta, d, alpha, and a in that order
+    # distance units are meters
+    # angle units are radian
+    # NOTE odrive wants turns, not radians
+    # theta initialized to zero
+
+    DH_path = '../Math/DH.csv'
+    __dh_param = np.genfromtxt(DH_path,skip_header=1, delimiter=',')[:,1:]
     __base_pose_offset = None
 
     max_acceleration = 1  # m/s^2
@@ -38,16 +44,78 @@ class MotionController:
     max_alpha = 1  # rad/s^2
     max_omega = np.pi/10  # rad/s
 
-    cur_joint_angles = None
-    motor_pos = None
+    current_pose = None
 
-    def __init__(self, base_pose_offset):
-        self.__dh_param = dh_param
-        self.__limit_offsets = limit_offsets
+    def __init__(self, base_pose_offset=np.eye(4)):
         self.__base_pose_offset = base_pose_offset
 
-    def fkine(self, joint_angles):
-        pass
+        current_joint_angles = None # get current joint angles from call to Joint Controller after calibration has completed
+
+        if current_joint_angles is None:
+            print('\033[93m')
+            print('MotionController instance received Nonetype for current_joint_angles during instantiation')
+            print('\033[0m')
+            return
+
+        self.update_joint_angles(current_joint_angles) # update joint angles in DH param class variable
+        self.current_pose = self.fkine() # find current pose through call to fkine with current joint angles
+
+    def get_DH(self):
+        return self.__dh_param
+
+    def update_joint_angles(self, joint_angles):
+        self.__dh_param[:,0] = joint_angles[:]
+
+    def get_serial_transform(self, starting_joint, inverse=False):
+        # given joint, return transform to get to the next join in the robot
+
+        if type(starting_joint) != int:
+            raise Exception("Joint must be an integer")
+
+        if not inverse:
+            if starting_joint not in range(1,6):
+                raise Exception(f"forward transform for starting joint {starting_joint} does not exist")
+
+            joint_idx = starting_joint - 1
+            theta, d, alpha, a = self.__dh_param[joint_idx]
+
+            ct = np.cos(theta)
+            st = np.sin(theta)
+            ca = np.cos(alpha)
+            sa = np.sin(alpha)
+
+            Z = np.array([[ct, -st, 0, 0], [st, ct, 0, 0], [0, 0, 1, d], [0, 0, 0, 1]]) # translation and rotation about Z axis
+            X = np.array([[1, 0, 0, 0], [0, ca, -sa, 0], [0, sa, ca, 0], [0, 0, 0, 1]]) # translation and rotation about X axis
+
+            T = np.matmul(X, Z)
+            return T
+
+        else:
+            # if inverse is selected, retrace one joint and use parameters for inverse transform
+            if starting_joint not in range(2,7):
+                raise Exception(f"inverse transform for starting joint {starting_joint} does not exist")
+
+            joint_idx = starting_joint - 2
+            theta, d, alpha, a = self.__dh_param[joint_idx]
+
+            ct = np.cos(theta)
+            st = np.sin(theta)
+            ca = np.cos(alpha)
+            sa = np.sin(alpha)
+
+            X_inv = np.array([[1, 0, 0, -a], [0, ca, sa, 0], [0, -sa, ca, 0], [0, 0, 0, 1]]) # translation and rotation about X axis
+            Z_inv = np.array([[ct, st, 0, 0], [-st, ct, 0, 0], [0, 0, 1, -d], [0, 0, 0, 1]]) # translation and rotation about Z axis
+
+            T_inv = np.matmul(Z_inv, X_inv)
+            return T_inv
+
+
+    def fkine(self):
+        cur_pose = self.__base_pose_offset
+        for joint in range(1,6):
+            T = self.get_serial_transform(joint)
+            cur_pose = np.matmul(T, cur_pose)
+        return cur_pose
 
     def ikine(self, pose, cur_pose):
         pass
@@ -225,12 +293,10 @@ class JointController:
         if not testing:
             return
 
-        odrives = self.odrives
-
         for motor in [1,2,3,4]:
             motor_setpoint = M_pos[motor-1]
             od_idx, axis = self.__J14_lookup[motor] # get corresponding odrive and axis for joint in question
-            axis_object = setup.get_axis_object(odrives[od_idx], axis) # get odrive axis object to command motor
+            axis_object = setup.get_axis_object(self.odrives[od_idx], axis) # get odrive axis object to command motor
             axis_object.controller.input_pos = motor_setpoint
 
         J5_angle = M_pos[4]
@@ -242,8 +308,8 @@ class JointController:
         M5_pos += J6_angle
         M6_pos -= J6_angle
 
-        M5_axis = setup.get_axis_object(odrives[2], 0)
-        M6_axis = setup.get_axis_object(odrives[2], 1)
+        M5_axis = setup.get_axis_object(self.odrives[2], 0)
+        M6_axis = setup.get_axis_object(self.odrives[2], 1)
 
         M5_axis.controller.input_pos = M5_pos
         M6_axis.controller.input_pos = M6_pos
@@ -251,13 +317,10 @@ class JointController:
 
 # ------------------- Begin Test cases -------------------
 if __name__ == "__main__":
-    print("running test cases")
-    print("start with pose wrapper")
+    print('running test cases for motioncontroller')
+    MC = MotionController()
+    test_angles = np.zeros(6)
+    MC.update_joint_angles(test_angles)
+    print(MC.get_DH())
 
-    t1 = PoseWrap([[0,1,0,1],[1,0,0,1],[0,0,-1,1],[0,0,0,1]])
-    x = np.array([[0,1,0,1],[1,0,0,1],[0,0,-1,1],[0,0,0,1]])
-    t2 = PoseWrap(x)
-    res = t2.forward(t1)
-    print(t1)
-    print(t2)
-    print(res)
+
