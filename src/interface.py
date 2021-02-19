@@ -47,7 +47,7 @@ class MotionController:
 
     current_pose = None
 
-    def __init__(self, base_pose_offset=np.eye(4)):
+    def __init__(self, RC_pipe, JC_pipe, base_pose_offset=np.eye(4)):
         self.__base_pose_offset = base_pose_offset
         self.__inv_base_pose_offset = np.linalg.inv(base_pose_offset)
 
@@ -66,7 +66,17 @@ class MotionController:
         return self.__dh_param
 
     def update_joint_angles(self, joint_angles):
-        self.__dh_param[:,0] = joint_angles[:]
+        # replaces thetas in class DH param with new ones
+        # if theta passed == None, skip and leave previous theta inside
+
+        l = len(joint_angles)
+        if l != 6:
+            raise Exception("joint angle list of length {l} is not of length 6")
+
+        for i in range(l):
+            angle = joint_angles[i]
+            if angle is not None:
+                self.__dh_param[i,0] = angle
 
     def get_serial_transform(self, starting_joint, inverse=False):
         # given joint, return transform to get to the next join in the robot
@@ -118,8 +128,8 @@ class MotionController:
 
     def fkine(self, start_joint, end_joint, reverse=False):
         # takes starting joint and ending joint, and returns the pose of the end joint in the starting joint's frame
-
         # check to see if start and end are within domain
+
         if start_joint not in range(0,7):
             raise Exception(f"start joint {start_joint} out of range for fkine calculation")
         if end_joint not in range(0,7):
@@ -161,7 +171,19 @@ class MotionController:
             return pose
 
 
-    def ikine(self, pose, cur_pose):
+    def ikine(self, pose):
+        # given desired pose, return vector of 6 angles for theta
+        
+        # game plan:
+        # find sphere location from desired pose
+        # solve for corresponding angles for J1-J3
+        # update DH param with new angles
+        # call fkine from J1 to J3 to extract orientation
+        # find relative orientation between J3 and J6 desired
+        # solve for J4-J6
+        # update DH param one last time for J4-J6
+        # return joint angles
+
         pass
 
     def within_tol(self, trans_tol, angle_tol):
@@ -186,7 +208,7 @@ class JointController:
 
     in_to_m = 0.0254
 
-    def __init__(self, ODSerialsPath):
+    def __init__(self, RC_pipe, MC_pipe, ODSerialsPath):
         self.odrives = setup.import_odrives(ODSerialsPath)
         if len(self.odrives) != 3:
             raise Exception("Error importing odrives correctly. Expected 3 but received {}.".format(len(self.odrives)))
@@ -362,7 +384,7 @@ class JointController:
 # ------------------- Begin Test cases -------------------
 if __name__ == "__main__":
     print('running test cases for motioncontroller')
-    MC = MotionController()
+    MC = MotionController(None, None)
     test_angles = np.zeros(6)
     MC.update_joint_angles(test_angles)
     print('retreiving DH param:')
