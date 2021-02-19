@@ -38,6 +38,7 @@ class MotionController:
     DH_path = '../Math/DH.csv'
     __dh_param = np.genfromtxt(DH_path,skip_header=1, delimiter=',')[:,1:]
     __base_pose_offset = None
+    __inv_base_pose_offset = None
 
     max_acceleration = 1  # m/s^2
     max_velocity = .05  # m/s
@@ -48,6 +49,7 @@ class MotionController:
 
     def __init__(self, base_pose_offset=np.eye(4)):
         self.__base_pose_offset = base_pose_offset
+        self.__inv_base_pose_offset = np.linalg.inv(base_pose_offset)
 
         current_joint_angles = None # get current joint angles from call to Joint Controller after calibration has completed
 
@@ -68,13 +70,17 @@ class MotionController:
 
     def get_serial_transform(self, starting_joint, inverse=False):
         # given joint, return transform to get to the next join in the robot
+        # if inverse, get tranform to previous joint in robot
 
         if type(starting_joint) != int:
             raise Exception("Joint must be an integer")
 
         if not inverse:
-            if starting_joint not in range(1,6):
+            if starting_joint not in range(0,6):
                 raise Exception(f"forward transform for starting joint {starting_joint} does not exist")
+
+            if starting_joint == 0:
+                return self.__base_pose_offset
 
             joint_idx = starting_joint - 1
             theta, d, alpha, a = self.__dh_param[joint_idx]
@@ -85,9 +91,9 @@ class MotionController:
             sa = np.sin(alpha)
 
             Z = np.array([[ct, -st, 0, 0], [st, ct, 0, 0], [0, 0, 1, d], [0, 0, 0, 1]]) # translation and rotation about Z axis
-            X = np.array([[1, 0, 0, 0], [0, ca, -sa, 0], [0, sa, ca, 0], [0, 0, 0, 1]]) # translation and rotation about X axis
+            X = np.array([[1, 0, 0, a], [0, ca, -sa, 0], [0, sa, ca, 0], [0, 0, 0, 1]]) # translation and rotation about X axis
 
-            T = np.matmul(X, Z)
+            T = np.matmul(Z, X)
             return T
 
         else:
@@ -106,7 +112,7 @@ class MotionController:
             X_inv = np.array([[1, 0, 0, -a], [0, ca, sa, 0], [0, -sa, ca, 0], [0, 0, 0, 1]]) # translation and rotation about X axis
             Z_inv = np.array([[ct, st, 0, 0], [-st, ct, 0, 0], [0, 0, 1, -d], [0, 0, 0, 1]]) # translation and rotation about Z axis
 
-            T_inv = np.matmul(Z_inv, X_inv)
+            T_inv = np.matmul(X_inv, Z_inv)
             return T_inv
 
 
@@ -131,7 +137,7 @@ class MotionController:
 
             for joint in range(start_joint, end_joint):
                 T = self.get_serial_transform(joint)
-                pose = np.matmul(T, pose)
+                pose = np.matmul(pose, T)
             return pose
 
         else: #reverse selected
@@ -146,13 +152,12 @@ class MotionController:
             else: # else set pose of start joint to identity
                 include_inv_base = False
 
-            for joint in range(start_joint-1, end_joint-1, -1): # start at joint just before end_joint, iterate backwards until you reach the start joint, inclusive
+            for joint in range(start_joint, end_joint, -1): # start at joint just before end_joint, iterate backwards until you reach the end joint, inclusive
                 T_inv = self.get_serial_transform(joint, inverse=True)
-                pose = np.matmul(T_inv, pose)
+                pose = np.matmul(pose, T_inv)
 
             if include_inv_base:
-                base_inv = np.linalg.inv(self.__base_pose_offset)
-                pose = np.matmul(base_inv, pose)
+                pose = np.matmul(pose, self.__inv_base_pose_offset)
             return pose
 
 
@@ -363,16 +368,17 @@ if __name__ == "__main__":
     print('retreiving DH param:')
     print(MC.get_DH())
     print()
-    print('finding pose of each joint relative to base:')
+    print('finding pose of each joint relative to base and respective inverse:')
     for joint in range(1,7):
+        f = MC.fkine(0, joint)
+        i = MC.fkine(joint, 0, reverse=True)
         print(f"Joint #{joint}")
-        print(MC.fkine(0, joint))
+        print('forward')
+        print(f)
+        print('reverse')
+        print(i)
+        print('actual inverse')
+        print(np.linalg.inv(i))
+        print('check')
+        print((np.matmul(f, i)))
         print()
-    print('finding forward transform from base to end effector and inverse transform from end effector to base')
-    print('forward transform:')
-    forward = MC.fkine(1,2)
-    print(forward)
-    print('reverse transform')
-    reverse = MC.fkine(2,1, reverse=True)
-    print(reverse)
-
