@@ -46,6 +46,7 @@ class MotionController:
     max_omega = np.pi/10  # rad/s
 
     current_pose = None
+    test_joint_angles = None
 
     def __init__(self, RC_pipe, JC_pipe, base_pose_offset=np.eye(4)):
         self.__base_pose_offset = base_pose_offset
@@ -65,6 +66,9 @@ class MotionController:
     def get_DH(self):
         return self.__dh_param
 
+    def get_joint_angles(self):
+        return self.__dh_param[:,0]
+
     def update_joint_angles(self, joint_angles):
         # replaces thetas in class DH param with new ones
         # if theta passed == None, skip and leave previous theta inside
@@ -78,9 +82,11 @@ class MotionController:
             if angle is not None:
                 self.__dh_param[i,0] = angle
 
-    def get_serial_transform(self, starting_joint, inverse=False):
+    def get_serial_transform(self, starting_joint, joint_angle=None, inverse=False):
         # given joint, return transform to get to the next join in the robot
         # if inverse, get tranform to previous joint in robot
+        # manually pass in joint_angle to use instead of dh param if needed
+        #   -this could be useful while solving for joint angles and finding that target pose is impossible, so dh param stay unmodified
 
         if type(starting_joint) != int:
             raise Exception("Joint must be an integer")
@@ -93,7 +99,12 @@ class MotionController:
                 return self.__base_pose_offset
 
             joint_idx = starting_joint - 1
-            theta, d, alpha, a = self.__dh_param[joint_idx]
+            theta_DH, d, alpha, a = self.__dh_param[joint_idx]
+
+            if joint_angle is not None: #check if joint manually passed into function, otherwise get from DH param
+                theta = joint_angle
+            else:
+                theta = theta_DH
 
             ct = np.cos(theta)
             st = np.sin(theta)
@@ -112,7 +123,12 @@ class MotionController:
                 raise Exception(f"inverse transform for starting joint {starting_joint} does not exist")
 
             joint_idx = starting_joint - 2
-            theta, d, alpha, a = self.__dh_param[joint_idx]
+            theta_DH, d, alpha, a = self.__dh_param[joint_idx]
+
+            if joint_angle is not None: #check if joint manually passed into function, otherwise get from DH param
+                theta = joint_angle
+            else:
+                theta = theta_DH
 
             ct = np.cos(theta)
             st = np.sin(theta)
@@ -126,9 +142,10 @@ class MotionController:
             return T_inv
 
 
-    def fkine(self, start_joint, end_joint, reverse=False):
+    def fkine(self, start_joint, end_joint, use_test_angles=False, reverse=False):
         # takes starting joint and ending joint, and returns the pose of the end joint in the starting joint's frame
         # check to see if start and end are within domain
+        # if use_test_angles is true, use class variable test_joint_angles instead of parsing dh param
 
         if start_joint not in range(0,7):
             raise Exception(f"start joint {start_joint} out of range for fkine calculation")
@@ -146,7 +163,10 @@ class MotionController:
                 pose = np.eye(4) 
 
             for joint in range(start_joint, end_joint):
-                T = self.get_serial_transform(joint)
+                if use_test_angles:
+                    T = self.get_serial_transform(joint, joint_angle=self.test_joint_angles[joint-1])
+                else:
+                    T = self.get_serial_transform(joint)
                 pose = np.matmul(pose, T)
             return pose
 
@@ -163,7 +183,10 @@ class MotionController:
                 include_inv_base = False
 
             for joint in range(start_joint, end_joint, -1): # start at joint just before end_joint, iterate backwards until you reach the end joint, inclusive
-                T_inv = self.get_serial_transform(joint, inverse=True)
+                if use_test_angles:
+                    T_inv = self.get_serial_transform(joint, joint_angle=self.test_joint_angles[joint-1], inverse=True)
+                else:
+                    T_inv = self.get_serial_transform(joint, inverse=True)
                 pose = np.matmul(pose, T_inv)
 
             if include_inv_base:
@@ -177,14 +200,43 @@ class MotionController:
         # game plan:
         # find sphere location from desired pose
         # solve for corresponding angles for J1-J3
-        # update DH param with new angles
-        # call fkine from J1 to J3 to extract orientation
+        # pass solved angles to fkine from J1 to J3 to extract orientation
         # find relative orientation between J3 and J6 desired
         # solve for J4-J6
-        # update DH param one last time for J4-J6
+        # check validity of joint angles
         # return joint angles
 
-        pass
+        # find sphere location:
+        sphere_to_end_effector_dist = self.__dh_param[5,1]
+        sphere_xyz = pose[:3, 3] - sphere_to_end_effector_dist * pose[:3, 2] # z axis of end effector
+
+        # solve for J1-J3
+        sphere_xyz_base = np.linalg.solve(self.__base_pose_offset, sphere_xyz.T) # put sphere location in frame of base instead of world
+        x_b, y_b, z_b = sphere_xyz_base[:3,0]
+        J1 = np.atan2(y_b, x_b)
+
+        # r is radial dist of sphere location to J1 axis of rotation
+        r = np.sqrt(np.power(x_b,2) + np.power(y_b,2))
+        # d_z is height of sphere location - height of J2 axis
+        d_z = z_b - self.__dh_param[5,1]
+
+        # equations for solving for J2 and J3 from:
+        # https://robotacademy.net.au/lesson/inverse-kinematics-for-a-2-joint-robot-arm-using-geometry/
+        a1, a2 = self.__dh_param[1:3, 3]
+
+        num = np.power(r,2) + np.power(d_z,2) - np.power(a1,2) - np.power(a2,2)
+        den = 2 * a1 * a2
+        q2 = np.arccos(num / den)
+
+        num = a2 * np.sin(q2)
+        den = a1 + a2*np.cos(q2)
+        q1 = np.atan2(z_b, r) - np.atan2(num/den)
+
+        J2 = q1
+        J3 = q2
+
+        return
+
 
     def within_tol(self, trans_tol, angle_tol):
         pass
