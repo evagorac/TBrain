@@ -92,7 +92,7 @@ class MotionController:
             raise Exception("Joint must be an integer")
 
         if not inverse:
-            if starting_joint not in range(0,6):
+            if starting_joint not in range(0,7):
                 raise Exception(f"forward transform for starting joint {starting_joint} does not exist")
 
             if starting_joint == 0:
@@ -143,13 +143,13 @@ class MotionController:
 
 
     def fkine(self, start_joint, end_joint, use_test_angles=False, reverse=False):
-        # takes starting joint and ending joint, and returns the pose of the end joint in the starting joint's frame
+        # takes starting joint and ending joint, and returns the pose of the frame following end joint in the starting joint's frame
         # check to see if start and end are within domain
         # if use_test_angles is true, use class variable test_joint_angles instead of parsing dh param
 
         if start_joint not in range(0,7):
             raise Exception(f"start joint {start_joint} out of range for fkine calculation")
-        if end_joint not in range(0,7):
+        if end_joint not in range(0,8):
             raise Exception(f"end joint {end_joint} out of range for fkine calculation")
 
         if not reverse:
@@ -201,41 +201,75 @@ class MotionController:
         # find sphere location from desired pose
         # solve for corresponding angles for J1-J3
         # pass solved angles to fkine from J1 to J3 to extract orientation
-        # find relative orientation between J3 and J6 desired
+        # find relative orientation between frame of J4 and end effector
         # solve for J4-J6
         # check validity of joint angles
         # return joint angles
 
         # find sphere location:
+        print("target pose for ikine:")
+        print(pose)
         sphere_to_end_effector_dist = self.__dh_param[5,1]
         sphere_xyz = pose[:3, 3] - sphere_to_end_effector_dist * pose[:3, 2] # z axis of end effector
 
         # solve for J1-J3
-        sphere_xyz_base = np.linalg.solve(self.__base_pose_offset, sphere_xyz.T) # put sphere location in frame of base instead of world
+        homo_sphere = np.vstack((sphere_xyz.reshape(3,1),[1]))
+        sphere_xyz_base = np.linalg.solve(self.__base_pose_offset, homo_sphere) # put sphere location in frame of base instead of world
         x_b, y_b, z_b = sphere_xyz_base[:3,0]
-        J1 = np.atan2(y_b, x_b)
+        J1 = np.arctan2(y_b, x_b)
 
         # r is radial dist of sphere location to J1 axis of rotation
         r = np.sqrt(np.power(x_b,2) + np.power(y_b,2))
-        # d_z is height of sphere location - height of J2 axis
-        d_z = z_b - self.__dh_param[5,1]
+        # d_z is height of sphere location - height of J2 axis from base
+        delta_z = z_b - self.__dh_param[0,1]
 
-        # equations for solving for J2 and J3 from:
+        # equations for solving for J2 and J3 in the elbow up solution from:
         # https://robotacademy.net.au/lesson/inverse-kinematics-for-a-2-joint-robot-arm-using-geometry/
-        a1, a2 = self.__dh_param[1:3, 3]
+        # these stinkers made a mistake in their solution, the equation for solving for q1 needs -q2, not q2
+        a2_3 = self.__dh_param[1,3]
+        a3_4 = self.__dh_param[2,3] 
+        d4_5 = self.__dh_param[3,1]
+        a1 = a2_3 
+        a2 = np.sqrt(np.power(a3_4, 2) + np.power(d4_5, 2)) # funky pythagoras math because of non zero lengthed common normal between J3 and J4 axes
 
-        num = np.power(r,2) + np.power(d_z,2) - np.power(a1,2) - np.power(a2,2)
+        num = np.power(r,2) + np.power(delta_z,2) - np.power(a1,2) - np.power(a2,2)
         den = 2 * a1 * a2
-        q2 = np.arccos(num / den)
+        q2 = -np.arccos(num / den)
 
-        num = a2 * np.sin(q2)
-        den = a1 + a2*np.cos(q2)
-        q1 = np.atan2(z_b, r) - np.atan2(num/den)
+        num = a2 * np.sin(-q2)
+        den = a1 + a2*np.cos(-q2)
+        q1 = np.arctan2(delta_z, r) + np.arctan2(num, den)
 
         J2 = q1
-        J3 = q2
+        J3 = q2 + np.arctan2(d4_5,  a3_4) # this funky math has to do with the vertical offset from J3 axis to the J4 axis
 
-        return
+        # now solve for J4-J6
+        # get orientation of J4 in relation to base
+        self.test_joint_angles = np.array([J1, J2, J3, 0, 0, 0])
+        print('test joint angles for first three')
+        print(self.test_joint_angles)
+        J4_orientation = self.fkine(0,4, use_test_angles=True)[:3, :3]
+        end_effector_orientation = pose[:3, :3]
+
+        # get relative orientation between J4 and end effector
+        print("J4 orientation:")
+        print(J4_orientation)
+        print("ee orientation")
+        print(end_effector_orientation)
+        R = np.linalg.solve(J4_orientation, end_effector_orientation)
+
+        # extract J4, J5, J6 from R assuming a ZYZ Euler rotation
+        # equations from: http://www.cs.columbia.edu/~allen/F15/NOTES/rotationmatrix.pdf
+        J6 = np.arctan2(R[1,2], R[0,2])
+
+        CJ6 = np.cos(J6)
+        SJ6 = np.sin(J6)
+
+        J4 = np.arctan2(-R[0,0]*SJ6 + R[1,0]*CJ6, -R[0,1]*SJ6 + R[1,1]*CJ6)
+
+        J5 = np.arctan2(R[0,2]*CJ6 + R[1,2]*SJ6, R[2,2])
+
+        return np.array([J1, J2, J3, J4, J5, J6])
 
 
     def within_tol(self, trans_tol, angle_tol):
@@ -437,22 +471,35 @@ class JointController:
 if __name__ == "__main__":
     print('running test cases for motioncontroller')
     MC = MotionController(None, None)
-    test_angles = np.zeros(6)
-    MC.update_joint_angles(test_angles)
-    print('retreiving DH param:')
+    #test_angles = np.zeros(6)
+    #MC.update_joint_angles(test_angles)
+    #print('retreiving DH param:')
+    #print(MC.get_DH())
+    #print()
+    #print('finding pose of each joint relative to base and respective inverse:')
+    #for joint in range(1,7):
+    #    f = MC.fkine(0, joint)
+    #    i = MC.fkine(joint, 0, reverse=True)
+    #    print(f"Joint #{joint}")
+    #    print('forward')
+    #    print(f)
+    #    print('reverse')
+    #    print(i)
+    #    print('actual inverse')
+    #    print(np.linalg.inv(i))
+    #    print('check')
+    #    print((np.matmul(f, i)))
+    #    print()
+    print('get dh param')
     print(MC.get_DH())
+    print('testing ikine')
+    test_angles = np.array([.00001,.00001,.00001,.00001,.000000001,.00001])
+    print('test angles for fkine')
+    print(test_angles)
+    MC.update_joint_angles(test_angles)
+    print('pose according to fkine')
+    pose = MC.fkine(0,7)
+    print(pose)
     print()
-    print('finding pose of each joint relative to base and respective inverse:')
-    for joint in range(1,7):
-        f = MC.fkine(0, joint)
-        i = MC.fkine(joint, 0, reverse=True)
-        print(f"Joint #{joint}")
-        print('forward')
-        print(f)
-        print('reverse')
-        print(i)
-        print('actual inverse')
-        print(np.linalg.inv(i))
-        print('check')
-        print((np.matmul(f, i)))
-        print()
+    print('calling ikine:')
+    print('output of ikine:\n',MC.ikine(pose))
