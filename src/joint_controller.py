@@ -39,7 +39,7 @@ print('max step allowable', max_step)
 
 OD_serial_path = 'odrive_serials.txt'
 JC = interface.JointController(OD_serial_path)
-#JC.calib_axes()
+JC.calib_axes()
 
 start_server = websockets.serve(server, "192.168.1.95", 8765)
 
