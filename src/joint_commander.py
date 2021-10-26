@@ -9,7 +9,7 @@ import numpy as np
 
 async def send_cmd(cmd):
     global joint_setpoints
-    uri = "ws://192.168.1.95:8765"
+    uri = "ws://192.168.1.166:8765"
     async with websockets.connect(uri) as websocket:
         pic_cmd = pickle.dumps(cmd)
         await websocket.send(pic_cmd)
